@@ -293,6 +293,8 @@ namespace MarpajarosTPVAPI.Context
             {
                 entity.ToTable("TPV_Articulos");
 
+                entity.Property(e => e.Imagen).HasMaxLength(500);
+
                 entity.Property(e => e.PrecioVenta).HasColumnType("decimal(18, 2)");
 
                 entity.HasOne(d => d.Tipo)

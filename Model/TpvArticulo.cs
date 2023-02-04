@@ -19,6 +19,7 @@ namespace MarpajarosTPVAPI.Model
         public decimal? PrecioVenta { get; set; }
         public int? TipoId { get; set; }
         public bool? Borrado { get; set; }
+        public string Imagen { get; set; }
 
         public virtual TpvTiposArticulo Tipo { get; set; }
         public virtual TpvArticulosAnimale TpvArticulosAnimale { get; set; }

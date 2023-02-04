@@ -6,6 +6,8 @@ using MarpajarosTPVAPI.Classes;
 using MarpajarosTPVAPI.Business;
 using MarpajarosTPVAPI.Model;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.Hosting;
+using System.IO;
 
 namespace MarpajarosTPVAPI.Controllers
 {
@@ -13,6 +15,11 @@ namespace MarpajarosTPVAPI.Controllers
     [ApiController]
     public class ProductosController : ControllerBase
     {
+
+        private IWebHostEnvironment env;
+        public ProductosController(IWebHostEnvironment _env) {
+            this.env = _env;
+        }
 
         #region Funciones
 
@@ -147,6 +154,42 @@ namespace MarpajarosTPVAPI.Controllers
 
         }
 
+        [ActionName("getImagen")]
+        [HttpPost]
+        public ActionResult GetImagen(GetImagenProductoRequest request)
+        {
+
+            try
+            {
+
+                var bs = new BS();
+                if (!(bs.AdmPermiso.Productos_VisualizarProductos() || bs.AdmPermiso.Productos_ModificarYEliminarProductos())) {
+                    return ResultClass.NotAuthorized("Acceso denegado.");
+                }
+
+                var producto = bs.TpvArticulo.getById(request.ProductoId);
+                if (producto == null) {
+                    return ResultClass.NotFound("Producto no encontrado.");
+                }
+                if (producto.Imagen == null) {
+                    return ResultClass.NotFound("El producto no tiene una imagen asociada.");
+                }
+
+                var fileInfo = new FileInfo(Path.Combine(env.ContentRootPath, "Uploads/Productos", producto.Imagen));
+                if (fileInfo.Exists) {
+                    return ResultClass.WithFile(fileInfo.FullName);
+                } else {
+                    return ResultClass.WithError("El archivo no existe.");
+                }
+
+            }
+            catch (Exception ex)
+            {
+                return ResultClass.WithError(ex.Message);
+            }
+
+        }
+
         #endregion
 
         #region Clases
@@ -172,6 +215,11 @@ namespace MarpajarosTPVAPI.Controllers
             public decimal? PrecioCompra;
             public decimal? PrecioVenta;
 
+        }
+
+        public class GetImagenProductoRequest
+        {
+            public int ProductoId;
         }
 
         #endregion

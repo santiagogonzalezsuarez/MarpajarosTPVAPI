@@ -25,8 +25,9 @@ namespace MarpajarosTPVAPI.Business
         public BL_AdmUsuariosAcceso AdmUsuariosAcceso {get; set;}
         public BL_FacCuadreCaja FacCuadreCaja {get; set;}
         public BL_FacVenta FacVenta {get; set;}
-        public BL_TpvVistaProducto TpvVistaProducto {get; set;}
+        public BL_TpvArticulo TpvArticulo {get; set;}
         public BL_TpvArticulosProducto TpvArticulosProducto {get; set;}
+        public BL_TpvVistaProducto TpvVistaProducto {get; set;}
 
         #endregion
 
