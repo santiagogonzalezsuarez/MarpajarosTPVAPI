@@ -23,6 +23,8 @@ namespace MarpajarosTPVAPI.Business
         public BL_AdmRolesPermiso AdmRolesPermiso {get; set;}
         public BL_AdmUsuario AdmUsuario {get; set;}
         public BL_AdmUsuariosAcceso AdmUsuariosAcceso {get; set;}
+        public BL_FacCuadreCaja FacCuadreCaja {get; set;}
+        public BL_FacVenta FacVenta {get; set;}
         public BL_TpvVistaProducto TpvVistaProducto {get; set;}
         public BL_TpvArticulosProducto TpvArticulosProducto {get; set;}
 
