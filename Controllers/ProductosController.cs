@@ -190,6 +190,190 @@ namespace MarpajarosTPVAPI.Controllers
 
         }
 
+        [ActionName("getProducto")]
+        [HttpPost]
+        [APIReturn(typeof(ProductoModel))]
+        public ActionResult GetProducto(GetProductoRequest request)
+        {
+
+            try
+            {
+
+                var bs = new BS();
+                if (!(bs.AdmPermiso.Productos_VisualizarProductos() || bs.AdmPermiso.Productos_ModificarYEliminarProductos())) {
+                    return ResultClass.NotAuthorized("Acceso denegado.");
+                }
+
+                // Obtenemos el registro
+                var result = bs.TpvArticulo.getById(request.Id);
+
+                // Transformación de campos
+                var item = new ProductoModel(){
+                    Id = result.Id,
+                    Producto = result.TpvArticulosProducto.Producto,
+                    CodigoBarras = result.TpvArticulosProducto.CodigoBarras,
+                    IVA = result.TpvArticulosProducto.Iva,
+                    PrecioVenta = result.PrecioVenta,
+                    CategoriaId = result.TpvArticulosProducto.CategoriaId,
+                    Marca = result.TpvArticulosProducto.Marca,
+                    Animales = result.TpvArticulosProducto.Animales,
+                    StockMinimo = result.TpvArticulosProducto.StockMinimo,
+                    Proveedores = result.TpvArticulosProveedores.Select(p => new ProductoProveedorModel(){
+                        ProveedorId = p.ProveedorId,
+                        Referencia = p.Referencia,
+                        PrecioCompra = p.PrecioCompra,
+                        PorcentajeGanancia = p.PorcentajeGanancia,
+                        Observaciones = p.Observaciones
+                    }).ToList()
+                };
+
+                // Return
+                return ResultClass.WithContent(item);
+
+            }
+            catch (Exception ex)
+            {
+                return ResultClass.WithError(ex.Message);
+            }
+
+        }
+
+        [ActionName("saveProducto")]
+        [HttpPost]
+        [APIReturn(typeof(ProductoModel))]
+        public ActionResult SaveProducto(ProductoModel request)
+        {
+
+            try
+            {
+
+                var bs = new BS();
+                if (!(bs.AdmPermiso.Productos_ModificarYEliminarProductos())) {
+                    return ResultClass.NotAuthorized("Acceso denegado.");
+                }
+
+                // Obtenemos el registro de base de datos. Si es nuevo lo creamos
+                TpvArticulo result = null;
+                if (request.Id == 0) {
+                    result = new TpvArticulo();
+                    bs.TpvArticulo.insert(result);
+                } else {
+                    result = bs.TpvArticulo.getById(request.Id);
+                    if (result == null)
+                        return ResultClass.WithError($"No se ha encontrado el producto con el Id {request.Id}.");
+                }
+
+                // Validamos que estén rellenos todos los campos obligatorios.
+                if (String.IsNullOrEmpty(request.Producto)) return ResultClass.WithError("El campo Nombre del producto es obligatorio.");
+                if (request.CategoriaId == null || request.CategoriaId < 1) return ResultClass.WithError("El campo Categoría es obligatorio.");
+                var categoria = bs.TpvCategoria.getById(request.CategoriaId.GetValueOrDefault(0));
+                if (categoria == null) return ResultClass.WithError("La categoría seleccionada no es válida.");
+                if (request.PrecioVenta == null) return ResultClass.WithError("El precio de venta tiene que ser numérico.");
+                if (request.IVA == null) return ResultClass.WithError("Debe seleccionar un IVA.");
+                if (request.Proveedores != null && request.Proveedores.GroupBy(p => p.ProveedorId).Any(p => p.Count() > 1)) return ResultClass.WithError("Existen proveedores duplicados. Solo puede haber una línea de proveedor por cada proveedor del producto. Elimine los sobrantes.");
+                
+                if (result.TpvArticulosProducto == null) {
+                    var tpvArticuloProducto = new TpvArticulosProducto();
+                    result.TpvArticulosProducto = tpvArticuloProducto;
+                }
+
+                // Actualizamos valores.
+                result.TpvArticulosProducto.Producto = request.Producto;
+                result.TpvArticulosProducto.CodigoBarras = request.CodigoBarras;
+                result.TpvArticulosProducto.Iva = request.IVA;
+                result.PrecioVenta = request.PrecioVenta;
+                result.TpvArticulosProducto.CategoriaId = request.CategoriaId;
+                result.TpvArticulosProducto.Marca = request.Marca;
+                result.TpvArticulosProducto.Animales = request.Animales;
+                result.TpvArticulosProducto.StockMinimo = request.StockMinimo;
+
+                // Proveedores a eliminar.
+                var proveedoresIds = request.Proveedores.Select(p => p.ProveedorId).ToList();
+                var proveedoresEliminar = result.TpvArticulosProveedores.Where(p => !proveedoresIds.Contains(p.ProveedorId)).ToList();
+                foreach (var proveedor in proveedoresEliminar)
+                {
+                    bs.TpvArticulosProveedore.delete(proveedor);
+                }
+
+                // Añadimos / modificamos proveedores
+                foreach (var proveedor in request.Proveedores)
+                {
+                    var proveedorBD = result.TpvArticulosProveedores.Where(p => p.ProveedorId == proveedor.ProveedorId).FirstOrDefault();
+                    if (proveedorBD == null) {
+                        proveedorBD = new TpvArticulosProveedore();
+                        result.TpvArticulosProveedores.Add(proveedorBD);
+                    }
+                    proveedorBD.ProveedorId = proveedor.ProveedorId.GetValueOrDefault(0);
+                    proveedorBD.Referencia = proveedor.Referencia;
+                    proveedorBD.PrecioCompra = proveedor.PrecioCompra;
+                    proveedorBD.PorcentajeGanancia = proveedor.PorcentajeGanancia;
+                    proveedorBD.Observaciones = proveedor.Observaciones;
+                }
+
+                // Guardamos los cambios.
+                bs.save();
+
+                // Construimos y devolvemos el objeto resultante.
+                return ResultClass.WithContent(new ProductoModel() {
+                    Id = result.Id,
+                    Producto = result.TpvArticulosProducto.Producto,
+                    CodigoBarras = result.TpvArticulosProducto.CodigoBarras,
+                    IVA = result.TpvArticulosProducto.Iva,
+                    PrecioVenta = result.PrecioVenta,
+                    CategoriaId = result.TpvArticulosProducto.CategoriaId,
+                    Marca = result.TpvArticulosProducto.Animales,
+                    StockMinimo = result.TpvArticulosProducto.StockMinimo,
+                    Proveedores = result.TpvArticulosProveedores.Select(p => new ProductoProveedorModel(){
+                        ProveedorId = p.ProveedorId,
+                        Referencia = p.Referencia,
+                        PrecioCompra = p.PrecioCompra,
+                        PorcentajeGanancia = p.PorcentajeGanancia,
+                        Observaciones = p.Observaciones
+                    }).ToList()
+                });
+
+            }
+            catch (Exception ex)
+            {
+                return ResultClass.WithError(ex.Message);
+            }
+
+        }
+
+        [ActionName("deleteProductos")]
+        [HttpPost]
+        [APIReturn(typeof(bool))]
+        public ActionResult DeleteProductos(DeleteProductosRequest request)
+        {
+        
+            try
+            {
+
+                var bs = new BS();
+                if (!(bs.AdmPermiso.Productos_ModificarYEliminarProductos()))
+                {
+                    return ResultClass.NotAuthorized("Acceso denegado.");
+                }
+
+                // Eliminamos productos
+                List<TpvArticulo> productosEliminar = bs.TpvArticulo.getAll().Where(p => request.ProductosIds.Contains(p.Id)).ToList();
+                foreach (var producto in productosEliminar)
+                {
+                    producto.Borrado = true;
+                }
+
+                // Guardamos.
+                bs.save();
+                return ResultClass.WithContent(true);
+
+            }
+            catch (Exception ex)
+            {
+                return ResultClass.WithError(ex.Message);
+            }
+
+        }
+
         #endregion
 
         #region Clases
@@ -220,6 +404,39 @@ namespace MarpajarosTPVAPI.Controllers
         public class GetImagenProductoRequest
         {
             public int ProductoId;
+        }
+
+        public class GetProductoRequest
+        {
+            public int Id;
+        }
+
+        public class ProductoModel
+        {
+            public int Id;
+            public string Producto;
+            public string CodigoBarras;
+            public decimal? IVA;
+            public decimal? PrecioVenta;
+            public int? CategoriaId;
+            public string Marca;
+            public string Animales;
+            public int? StockMinimo;
+            public List<ProductoProveedorModel> Proveedores;
+        }
+
+        public class ProductoProveedorModel
+        {
+            public int? ProveedorId;
+            public string Referencia;
+            public decimal? PrecioCompra;
+            public decimal? PorcentajeGanancia;
+            public string Observaciones;
+        }
+
+        public class DeleteProductosRequest
+        {
+            public List<int> ProductosIds;
         }
 
         #endregion
