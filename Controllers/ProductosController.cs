@@ -81,7 +81,7 @@ namespace MarpajarosTPVAPI.Controllers
                     var palabras = request.filtro_Search.Split(" ").Where(p => p.Length > 0).ToList();
                     foreach (var palabra in palabras)
                     {
-                        var categoriasIdsMatches = listaCategorias.Where(p => p.NombreCompleto.Contains(palabra)).Select(p => (int?)p.Id).ToList();
+                        var categoriasIdsMatches = listaCategorias.Where(p => p.NombreCompleto.ToLower().Contains(palabra.ToLower())).Select(p => (int?)p.Id).ToList();
                         result = result.Where(p => p.TpvArticulosProveedores.Any(q => q.Proveedor.Nombre.Contains(palabra) || p.TpvArticulosProducto.CodigoBarras.Contains(palabra) || p.TpvArticulosProducto.Producto.Contains(palabra) || p.TpvArticulosProducto.Marca.Contains(palabra) || categoriasIdsMatches.Contains(p.TpvArticulosProducto.CategoriaId)));
                     }
                 }
