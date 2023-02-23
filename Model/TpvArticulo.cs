@@ -20,6 +20,7 @@ namespace MarpajarosTPVAPI.Model
         public int? TipoId { get; set; }
         public bool? Borrado { get; set; }
         public string Imagen { get; set; }
+        public int? Stock { get; set; }
 
         public virtual TpvTiposArticulo Tipo { get; set; }
         public virtual TpvArticulosAnimale TpvArticulosAnimale { get; set; }

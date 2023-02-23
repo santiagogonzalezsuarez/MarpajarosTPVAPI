@@ -37,15 +37,42 @@ namespace MarpajarosTPVAPI.Controllers
                     return ResultClass.NotAuthorized("Acceso denegado.");
                 }
 
-                IQueryable<TpvVistaProducto> result = bs.TpvVistaProducto.getAll();
+                var categorias = bs.TpvCategoria.getAll().Select(p => new {
+                    Id = p.Id,
+                    Categoria = p.Categoria,
+                    PadreId = p.CategoriaPadreId
+                }).ToList();
+                var listaCategorias = new List<CategoriasClass>();
+                foreach (var categoria in categorias)
+                {
+                    var nombreCategoria = "";
+                    var categoriaItem = categoria;
+                    while (categoriaItem != null) {
+                        if (nombreCategoria == "") {
+                            nombreCategoria = categoriaItem.Categoria;
+                        } else {
+                            nombreCategoria = $"{categoriaItem.Categoria} > {nombreCategoria}";
+                        }
+                        if (categoriaItem.PadreId == null) {
+                            categoriaItem = null;
+                        } else {
+                            categoriaItem = categorias.Where(p => p.Id == categoriaItem.PadreId).FirstOrDefault();
+                        }
+                    }
+                    listaCategorias.Add(new CategoriasClass {
+                        Id = categoria.Id,
+                        NombreCompleto = nombreCategoria
+                    });
+                }
+                
+                IQueryable<TpvArticulo> result = bs.TpvArticulo.getAll();
 
                 // Filtro
 
                 // Proveedor
                 int filtro_ProveedorIdInt = 0;
                 if (request.filtro_ProveedorId != null && Int32.TryParse(request.filtro_ProveedorId, out filtro_ProveedorIdInt)) {
-                    string proveedorFiltroString = $"#{filtro_ProveedorIdInt}#";
-                    result = result.Where(p => p.ProveedoresIds.Contains(proveedorFiltroString));
+                    result = result.Where(p => p.TpvArticulosProveedores.Any(q => q.ProveedorId == filtro_ProveedorIdInt));
                 }
 
                 // Búsqueda
@@ -54,7 +81,8 @@ namespace MarpajarosTPVAPI.Controllers
                     var palabras = request.filtro_Search.Split(" ").Where(p => p.Length > 0).ToList();
                     foreach (var palabra in palabras)
                     {
-                        result = result.Where(p => p.Proveedor.Contains(palabra) || p.Referencias.Contains(palabra) || p.CodigoBarras.Contains(palabra) || p.Producto.Contains(palabra) || p.Categorias.Contains(palabra) || p.Marca.Contains(palabra));
+                        var categoriasIdsMatches = listaCategorias.Where(p => p.NombreCompleto.Contains(palabra)).Select(p => (int?)p.Id).ToList();
+                        result = result.Where(p => p.TpvArticulosProveedores.Any(q => q.Proveedor.Nombre.Contains(palabra) || p.TpvArticulosProducto.CodigoBarras.Contains(palabra) || p.TpvArticulosProducto.Producto.Contains(palabra) || p.TpvArticulosProducto.Marca.Contains(palabra) || categoriasIdsMatches.Contains(p.TpvArticulosProducto.CategoriaId)));
                     }
                 }
 
@@ -63,48 +91,55 @@ namespace MarpajarosTPVAPI.Controllers
                 {
                     case "Categorias":
                         if (request.dir == "DESC") {
-                            result = result.OrderByDescending(p => p.Categorias).ThenByDescending(p => p.ArticuloId);
+                            result = result.OrderByDescending(p => p.TpvArticulosProducto.Categoria).ThenByDescending(p => p.Id);
                         } else {
-                            result = result.OrderBy(p => p.Categorias).ThenBy(p => p.ArticuloId);
+                            result = result.OrderBy(p => p.TpvArticulosProducto.Categoria).ThenBy(p => p.Id);
                         }
                         break;
                     case "Producto":
                         if (request.dir == "DESC") {
-                            result = result.OrderByDescending(p => p.Producto).ThenByDescending(p => p.ArticuloId);
+                            result = result.OrderByDescending(p => p.TpvArticulosProducto.Producto).ThenByDescending(p => p.Id);
                         } else {
-                            result = result.OrderBy(p => p.Producto).ThenBy(p => p.ArticuloId);
+                            result = result.OrderBy(p => p.TpvArticulosProducto.Producto).ThenBy(p => p.Id);
                         }
                         break;
                     case "Stock":
                         if (request.dir == "DESC") {
-                            result = result.OrderByDescending(p => p.Stock).ThenByDescending(p => p.ArticuloId);
+                            result = result.OrderByDescending(p => p.Stock).ThenByDescending(p => p.Id);
                         } else {
-                            result = result.OrderBy(p => p.Stock).ThenBy(p => p.ArticuloId);
+                            result = result.OrderBy(p => p.Stock).ThenBy(p => p.Id);
                         }
                         break;
                     case "Marca":
                         if (request.dir == "DESC") {
-                            result = result.OrderByDescending(p => p.Marca).ThenByDescending(p => p.ArticuloId);
+                            result = result.OrderByDescending(p => p.TpvArticulosProducto.Marca).ThenByDescending(p => p.Id);
                         } else {
-                            result = result.OrderBy(p => p.Marca).ThenBy(p => p.ArticuloId);
+                            result = result.OrderBy(p => p.TpvArticulosProducto.Marca).ThenBy(p => p.Id);
                         }
                         break;
                     case "Referencias":
                         if (request.dir == "DESC") {
-                            result = result.OrderByDescending(p => p.Referencias).ThenByDescending(p => p.ArticuloId);
+                            result = result.OrderByDescending(p => p.TpvArticulosProveedores.Select(q => q.Referencia).FirstOrDefault()).ThenByDescending(p => p.Id);
                         } else {
-                            result = result.OrderBy(p => p.Referencias).ThenBy(p => p.ArticuloId);
+                            result = result.OrderBy(p => p.TpvArticulosProveedores.Select(q => q.Referencia).FirstOrDefault()).ThenBy(p => p.Id);
+                        }
+                        break;
+                    case "PrecioCompra":
+                        if (request.dir == "DESC") {
+                            result = result.OrderByDescending(p => (p.TpvArticulosProveedores.Any(q => q.PrecioCompra != null) ? p.TpvArticulosProveedores.Where(q => q.PrecioCompra != null).Min(q => q.PrecioCompra) : 0)).ThenByDescending(p => p.Id);
+                        } else {
+                            result = result.OrderBy(p => (p.TpvArticulosProveedores.Any(q => q.PrecioCompra != null) ? p.TpvArticulosProveedores.Where(q => q.PrecioCompra != null).Min(q => q.PrecioCompra) : 0)).ThenBy(p => p.Id);
                         }
                         break;
                     case "PrecioVenta":
                         if (request.dir == "DESC") {
-                            result = result.OrderByDescending(p => p.PrecioVenta).ThenByDescending(p => p.ArticuloId);
+                            result = result.OrderByDescending(p => p.PrecioVenta).ThenByDescending(p => p.Id);
                         } else {
-                            result = result.OrderBy(p => p.PrecioVenta).ThenBy(p => p.ArticuloId);
+                            result = result.OrderBy(p => p.PrecioVenta).ThenBy(p => p.Id);
                         }
                         break;
                     default:
-                        result = ReflectionQueryable.OrderByProperty(result, request.sort, request.dir == "DESC", false);
+                        result = ReflectionQueryable.OrderByProperty(result, request.sort, request.dir == "DESC", true);
                         break;
                 }
 
@@ -121,19 +156,30 @@ namespace MarpajarosTPVAPI.Controllers
                 var page = (int)(Math.Floor((decimal)request.start / (decimal)request.limit) + 1);
                 if (result != null)
                 {
-
-                    lista = (from p in result.ToList()
-                            select new GetProductosResult
-                            {
-                                Id = p.ArticuloId,
-                                Categorias = p.Categorias,
+                    var listaQuery = (from p in result
+                                      select new {
+                                          Id = p.Id,
+                                          CategoriaId = p.TpvArticulosProducto.CategoriaId,
+                                          Producto = p.TpvArticulosProducto.Producto,
+                                          Stock = p.Stock,
+                                          Marca = p.TpvArticulosProducto.Marca,
+                                          Referencia = p.TpvArticulosProveedores.Select(q => q.Referencia),
+                                          PrecioCompra = p.TpvArticulosProveedores.Min(q => q.PrecioCompra),
+                                          PrecioVenta = p.PrecioVenta
+                                      }).ToList();
+                    
+                    lista = (from p in listaQuery
+                             select new GetProductosResult
+                             {
+                                Id = p.Id,
+                                Categorias = listaCategorias.Where(q => q.Id == p.CategoriaId).Select(q => q.NombreCompleto).FirstOrDefault(),
                                 Producto = p.Producto,
                                 Stock = p.Stock,
                                 Marca = p.Marca,
-                                Referencia = p.Referencias,
-                                PrecioCompra = bs.TpvArticulosProducto.getById(p.ArticuloId).Articulo.TpvArticulosProveedores.Min(q => q.PrecioCompra),
+                                Referencia = String.Join(", ", p.Referencia.ToArray()),
+                                PrecioCompra = p.PrecioCompra,
                                 PrecioVenta = p.PrecioVenta
-                            }).ToList();
+                             }).ToList();
 
                 }
 
@@ -529,6 +575,12 @@ namespace MarpajarosTPVAPI.Controllers
         public class DeleteProductosRequest
         {
             public List<int> ProductosIds;
+        }
+
+        public class CategoriasClass
+        {
+            public int Id;
+            public string NombreCompleto;
         }
 
         #endregion
