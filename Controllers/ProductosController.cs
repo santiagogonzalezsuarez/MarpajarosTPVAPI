@@ -238,6 +238,86 @@ namespace MarpajarosTPVAPI.Controllers
 
         }
 
+        [ActionName("actualizarImagen")]
+        [HttpPost]
+        [APIReturn(typeof(bool))]
+        public ActionResult ActualizarImagen(ActualizarImagenRequest request)
+        {
+
+            try
+            {
+
+                var bs = new BS();
+                if (!(bs.AdmPermiso.Productos_ModificarYEliminarProductos())) {
+                    return ResultClass.NotAuthorized("Acceso denegado.");
+                }
+
+                // Obtenemos el registro de base de datos.
+                var producto = bs.TpvArticulo.getById(request.Id);
+                if (producto == null)
+                    return ResultClass.WithError($"Producto no encontrado: {request.Id}");
+
+                var justFileName = new FileInfo(request.fileName).Name; // Quitamos la ruta.
+                if (justFileName.Contains(".")) justFileName = justFileName.Substring(0, justFileName.LastIndexOf("."));
+                var extension = new FileInfo(request.fileName).Extension;
+                var fileInfo = new FileInfo(Path.Combine(env.ContentRootPath, "Uploads/Productos", $"{producto.Id}_{justFileName}{extension}"));
+                int counter = 1;
+                while (fileInfo.Exists) {
+                    counter++;
+                    fileInfo = new FileInfo(Path.Combine(env.ContentRootPath, "Uploads/Productos", $"{producto.Id}_{justFileName}{counter}{extension}"));
+                }
+
+                if (!fileInfo.Directory.Exists) {
+                    fileInfo.Directory.Create();
+                }
+
+                // Guardamos la imagen.
+                System.IO.File.WriteAllBytes(fileInfo.FullName, Convert.FromBase64String(request.base64Image));
+                producto.Imagen = fileInfo.Name;
+                bs.save();
+
+                return ResultClass.WithContent(true);
+
+            }
+            catch (Exception ex)
+            {
+                return ResultClass.WithError(ex.Message);
+            }
+
+        }
+
+        [ActionName("eliminarImagen")]
+        [HttpPost]
+        [APIReturn(typeof(bool))]
+        public ActionResult EliminarImagen(EliminarImagenRequest request)
+        {
+
+            try
+            {
+
+                var bs = new BS();
+                if (!(bs.AdmPermiso.Productos_ModificarYEliminarProductos())) {
+                    return ResultClass.NotAuthorized("Acceso denegado.");
+                }
+
+                // Obtenemos el registro de base de datos.
+                var producto = bs.TpvArticulo.getById(request.Id);
+                if (producto == null)
+                    return ResultClass.WithError($"Producto no encontrado: {request.Id}");
+
+                producto.Imagen = null;
+                bs.save();
+
+                return ResultClass.WithContent(true);
+
+            }
+            catch (Exception ex)
+            {
+                return ResultClass.WithError(ex.Message);
+            }
+
+        }
+
         [ActionName("saveProducto")]
         [HttpPost]
         [APIReturn(typeof(ProductoModel))]
@@ -399,6 +479,18 @@ namespace MarpajarosTPVAPI.Controllers
             public decimal? PrecioCompra;
             public decimal? PrecioVenta;
 
+        }
+
+        public class ActualizarImagenRequest
+        {
+            public int Id;
+            public string fileName;
+            public string base64Image;
+        }
+
+        public class EliminarImagenRequest
+        {
+            public int Id;
         }
 
         public class GetImagenProductoRequest
